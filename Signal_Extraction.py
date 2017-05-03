@@ -30,16 +30,21 @@ def sharpen_foreground(img,bg):
       img[start[i]:end[i],col]=mode(column[start[i]:end[i]])[0]
     #img=remove_small_objects(g.astype('uint'), min_size=5,connectivity=1)
   return img
+plt.style.use('ggplot')
 plt.rcParams['image.cmap'] = 'hot'
+plt.rcParams["figure.figsize"] = (16,9)
+plt.close('all')
 plt.ion()
-loop_no = '4'   
-data = misc.imread('D:\Data\GDPL\OP & PV\loop_'+loop_no+'_PV_SP.jpg')[:,:,:3]
+loop_no = '10'
+path = 'D:\Data\GDPL\\'
+data = misc.imread(path+'OP & PV\loop_'+loop_no+'_OP.jpg')[:,:,:3]
+loopdata=pd.read_csv(path+'OP & PV\loop_'+loop_no+'.csv')
 plt.figure()
 plt.axis("off")
 plt.imshow(data)
 plt.pause(0.05)
 plt.draw() 
-ncluster=input('Enter No of Distinct colors :')
+ncluster=2#input('Enter No of Distinct colors :')
 #ncluster=6
 
 y,x,z = np.shape(data)
@@ -78,19 +83,31 @@ for i in range(0,ncluster):
   plt.pause(0.05)
 plt.draw() 
   
-loopdata=pd.read_csv('D:\Data\GDPL\OP & PV\loop_'+loop_no+'.csv')
-sig1 = loopdata['loop_'+loop_no+'.SP'].values
+sig1 = loopdata['loop_'+loop_no+'.OP'].values
 min_sig1 = min(sig1)
 max_sig1 = max(sig1)
-nm = input('Enter number of Signal of interest :')
+nm = input('Extracted signal are displayed. \nEnter number of the Signal of interest :')
 exsig = curves[nm,:]
+# Interpolate nans using the nearest values
+nans, idx= np.isnan(exsig), lambda z: z.nonzero()[0]
+exsig[nans]= np.interp(idx(nans), idx(~nans), exsig[~nans])
+# Scale the extracted signal to be in the same range as the original signal
 min_exsig = min(exsig)
 max_exsig = max(exsig)
 sig2 = (exsig-min_exsig)/(max_exsig-min_exsig)*(max_sig1-min_sig1)+min_sig1
-x_ax = np.linspace(0, 1, num=len(sig1), endpoint=True)
+# Interpolate the extracted signal to be of the same length as the original signal
+x_large = np.linspace(0, 1, num=len(sig1), endpoint=True)
 x_small = np.linspace(0, 1, num=len(sig2), endpoint=True)
 f = interp1d(x_small, sig2)
-sig2int = f(x_ax)
-plt.figure()
-plt.plot(sig2int)
-plt.plot(sig1)
+sig2intpl = f(x_large)
+# Compute RMSE as percentage of the mean of the signal
+RMSE = np.sqrt(np.mean((sig1-sig2intpl)**2))
+mean_sig1 = np.mean(sig1)
+RMSEpc = RMSE/mean_sig1*100
+print 'RMSE(%)  =',RMSEpc
+compare = pd.DataFrame([sig1,sig2intpl]).T
+compare.columns = ['Original Signal','Extracted Signal']
+compare.plot()
+plt.title('Loop '+loop_no+' OP Original vs Extracted. RMSE(%) = '+str(np.round(RMSEpc,3)))
+compare.to_csv(path+'RMSE\Loop '+loop_no+'.csv',index=False)
+plt.savefig(path+'RMSE\Loop '+loop_no+'.png')
