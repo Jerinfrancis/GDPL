@@ -17,7 +17,7 @@ from scipy.stats import mode
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
-from scipy.signal import order_filter
+from scipy.interpolate import interp1d
 
 def sharpen_foreground(img,bg):
   for col in range(np.shape(img)[1]):
@@ -31,13 +31,18 @@ def sharpen_foreground(img,bg):
     #img=remove_small_objects(g.astype('uint'), min_size=5,connectivity=1)
   return img
 plt.rcParams['image.cmap'] = 'hot'
-    
-data = misc.imread('D:\Data\GDPL\OP & PV\loop_2_PV_SP.jpg')[:,:,:3]
+plt.ion()
+loop_no = '4'   
+data = misc.imread('D:\Data\GDPL\OP & PV\loop_'+loop_no+'_PV_SP.jpg')[:,:,:3]
+plt.figure()
+plt.axis("off")
+plt.imshow(data)
+plt.pause(0.05)
+plt.draw() 
 ncluster=input('Enter No of Distinct colors :')
 #ncluster=6
 
 y,x,z = np.shape(data)
-plt.imshow(data)
 
 df = pd.DataFrame(data.reshape(y*x,z))
 bg_val = df.mode().values[0]
@@ -63,8 +68,29 @@ for cv in range(ncluster):
   cvn = cimg==cv
   for i in range(x):
     curves[cv,i]=y-np.median(np.where(cvn[:,i]))
-plt.figure()
+
 for i in range(0,ncluster):
-  plt.scatter(np.linspace(0,1,x),curves[i],s=5)
+  plt.figure()
+  plt.plot(np.linspace(0,1,x),curves[i])
   plt.legend(loc=i)
+  plt.title('Signal :'+str(i))
   plt.ylim([0,y])
+  plt.pause(0.05)
+plt.draw() 
+  
+loopdata=pd.read_csv('D:\Data\GDPL\OP & PV\loop_'+loop_no+'.csv')
+sig1 = loopdata['loop_'+loop_no+'.SP'].values
+min_sig1 = min(sig1)
+max_sig1 = max(sig1)
+nm = input('Enter number of Signal of interest :')
+exsig = curves[nm,:]
+min_exsig = min(exsig)
+max_exsig = max(exsig)
+sig2 = (exsig-min_exsig)/(max_exsig-min_exsig)*(max_sig1-min_sig1)+min_sig1
+x_ax = np.linspace(0, 1, num=len(sig1), endpoint=True)
+x_small = np.linspace(0, 1, num=len(sig2), endpoint=True)
+f = interp1d(x_small, sig2)
+sig2int = f(x_ax)
+plt.figure()
+plt.plot(sig2int)
+plt.plot(sig1)
